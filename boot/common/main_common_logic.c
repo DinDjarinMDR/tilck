@@ -50,6 +50,8 @@ write_bootloader_hello_msg(void)
    printk("----- Hello from Tilck's %s bootloader! -----\n\n",
           intf->efi ? "UEFI" : "legacy");
 
+   printk("Hello from Linux! hohoho ..");
+
    intf->set_color(DEFAULT_FG_COLOR);
 }
 
