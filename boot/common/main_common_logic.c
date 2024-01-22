@@ -19,7 +19,6 @@
 #include <tilck/common/build_info.h>
 
 #include "common_int.h"
-#include "stdio.h"
 
 #define CHECK(cond)                                  \
    do {                                              \
@@ -48,10 +47,8 @@ write_bootloader_hello_msg(void)
 {
    intf->set_color(COLOR_BRIGHT_WHITE);
 
-   printk("----- Hello from Tilck's %s bootloader! -----\n\n",
+   printk("----- Hello from Linux %s bootloader! hohoho -----\n\n",
           intf->efi ? "UEFI" : "legacy");
-
-   printf("Hello from Linux! hohoho ..");
 
    intf->set_color(DEFAULT_FG_COLOR);
 }
