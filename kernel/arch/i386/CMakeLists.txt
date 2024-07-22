@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-2-Clause
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.22)
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
@@ -63,6 +63,29 @@ set(
    -Wl,--build-id=none
    -Wl,--script=${KERNEL_SCRIPT}
 )
+
+# Because of the properties way the Tilck kernel is linked, in its ELF
+# binary it looks like that it has an executable stack, while that's
+# clearly not the case, because it's not a userspace application and the
+# kernel stack has nothing to do with the LOAD segments in the ELF binary.
+# Simply, the GCC toolchain doesn't know that and prints a warning. It's
+# totally safe to disable this warning, in this case.
+
+if (${KERNEL_SYSCC} OR ${USE_SYSCC})
+
+   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      if (${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL "12.0.0")
+         list(APPEND KERNEL_LINK_FLAGS_LIST "-Wl,--no-warn-rwx")
+      endif()
+   endif()
+
+else()
+
+   # Default case (using the GCC from the pre-built toolchain)
+   if (${GCC_TC_VER} VERSION_GREATER_EQUAL "12.0.0")
+      list(APPEND KERNEL_LINK_FLAGS_LIST "-Wl,--no-warn-rwx")
+   endif()
+endif()
 
 JOIN("${KERNEL_LINK_FLAGS_LIST}" ${SPACE} KERNEL_LINK_FLAGS)
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-2-Clause
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.22)
 
 if (ARCH_GTESTS)
    set_cross_compiler_gtests()
@@ -77,7 +77,7 @@ if (${HOST_ARCH_FAMILY} STREQUAL "generic_x86")
       "*.c"
       "*.cpp"
       "${CMAKE_SOURCE_DIR}/common/3rd_party/datetime.c"
-      "${CMAKE_SOURCE_DIR}/common/arch/${ARCH_FAMILY}/*.c"
+      "${CMAKE_SOURCE_DIR}/common/arch/${HOST_ARCH_FAMILY}/*.c"
    )
 
 else()

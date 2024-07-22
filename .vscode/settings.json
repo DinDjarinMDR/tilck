@@ -36,8 +36,6 @@
    "editor.emptySelectionClipboard": false,
    "git.ignoreLimitWarning": true,
    "cmake.configureOnOpen": false,
-   "python.linting.pylintEnabled": true,
-   "python.linting.enabled": true,
    "C_Cpp.dimInactiveRegions": false,
    "C_Cpp.configurationWarnings": "Disabled",
    "C_Cpp.errorSquiggles": "Disabled",
@@ -218,7 +216,11 @@
       "stddef.h": "c",
       "stdint.h": "c",
       "alltypes.h": "c",
-      "kmalloc_block_node.h": "c"
+      "kmalloc_block_node.h": "c",
+      "mod_console.h": "c",
+      "compare": "c",
+      "cmdline_opts.h": "c",
+      "mod_kb8042.h": "c",
+      "process_mm.h": "c"
    },
-   "python.pythonPath": "/usr/bin/python3",
 }

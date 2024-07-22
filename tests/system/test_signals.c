@@ -16,17 +16,35 @@
 
 #include "devshell.h"
 
+/* cause a general fault protection */
 static void child_generate_gpf(void *unused)
 {
-   /* cause a general fault protection */
+#if defined(__i386__) || defined(__x86_64__)
+
    asmVolatile("hlt");
+
+#elif defined(__riscv)
+/*
+ * The GPF type exception does not exist in riscv, and if executing a
+ * privileged instruction in user space then it generates an illegal
+ * instruction exception.
+ * Here we access the zero address to generate a page exception.
+ */
+   asmVolatile("lw zero, (zero)" : : : "memory");
+#endif
 }
 
+/* cause non-CoW page fault */
 static void child_generate_non_cow_page_fault(void *unused)
 {
-   /* cause non-CoW page fault */
+   /* A stack variable to read from */
    int val = 25;
-   memcpy((int *)0xabc, &val, sizeof(val));
+
+   /* A volatile pointer to use as a destination address */
+   void *volatile invalid_addr = (void *)0xabc;
+
+   /* A memcpy() call that will trigger a non-CoW page fault */
+   memcpy(invalid_addr, &val, sizeof(val));
 }
 
 static void child_generate_sigill(void *unused)
@@ -319,6 +337,11 @@ int cmd_sigill(int argc, char **argv)
 /* Mask SIGFPE and then trigger it with a real fault */
 int cmd_sigfpe(int argc, char **argv)
 {
+#if defined(__riscv)
+   printf("Note: RISC-V do not have a SIGFPE, just skip!\n");
+   return 0;
+#endif
+
    mask_signal(SIGFPE);
    return test_sig(child_generate_sigfpe, NULL, SIGFPE, 0, 0);
 }

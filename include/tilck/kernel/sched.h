@@ -13,8 +13,6 @@
 
 #include <tilck_gen_headers/config_sched.h>
 
-#define TIME_SLICE_TICKS (TIMER_HZ / 25)
-
 enum task_state {
    TASK_STATE_INVALID   = 0,
    TASK_STATE_RUNNABLE  = 1,
@@ -384,7 +382,7 @@ void do_schedule(void);
 bool pending_signals(void);
 int get_curr_tid(void);
 int get_curr_pid(void);
-void save_current_task_state(regs_t *);
+void save_current_task_state(regs_t *, bool);
 void sched_account_ticks(void);
 int create_new_pid(void);
 int create_new_kernel_tid(void);

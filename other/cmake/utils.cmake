@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-2-Clause
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.22)
 
 set(SPACE " ")
 
@@ -115,6 +115,15 @@ macro(set_cross_compiler)
 
    else()
 
+      if (${ARCH} STREQUAL "riscv64")
+         set(CMAKE_C_FLAGS "${ARCH_GCC_FLAGS}")
+         set(CMAKE_CXX_FLAGS "${ARCH_GCC_FLAGS} ${KERNEL_CXX_FLAGS}")
+         set(CMAKE_ASM_FLAGS "${ARCH_GCC_FLAGS}")
+      else()
+         # Assume that the system's compiler is already able to build for
+         # the given target architecture without additional flags.
+      endif()
+
       # DEFAULT CASE: use our pre-built toolchain
       set_cross_compiler_internal(${GCC_TOOLCHAIN} ${ARCH_GCC_TC})
 
@@ -187,95 +196,6 @@ endmacro()
 #message("CMAKE_CXX_COMPILE_OBJECT: ${CMAKE_CXX_COMPILE_OBJECT}")
 
 
-function(h2d_char hc dec_out)
-
-   if ("${hc}" MATCHES "[0-9]")
-      set(${dec_out} ${hc} PARENT_SCOPE)
-   elseif ("${hc}" STREQUAL "a")
-      set(${dec_out} 10 PARENT_SCOPE)
-   elseif("${hc}" STREQUAL "b")
-      set(${dec_out} 11 PARENT_SCOPE)
-   elseif("${hc}" STREQUAL "c")
-      set(${dec_out} 12 PARENT_SCOPE)
-   elseif("${hc}" STREQUAL "d")
-      set(${dec_out} 13 PARENT_SCOPE)
-   elseif("${hc}" STREQUAL "e")
-      set(${dec_out} 14 PARENT_SCOPE)
-   elseif("${hc}" STREQUAL "f")
-      set(${dec_out} 15 PARENT_SCOPE)
-   else()
-      message(FATAL_ERROR "Invalid digit '${hc}'")
-   endif()
-
-endfunction()
-
-function(hex2dec val out)
-
-   if (NOT "${val}" MATCHES "^0x[0-9a-f]+$")
-      message(FATAL_ERROR "Invalid hex number '${val}'")
-   endif()
-
-   string(LENGTH "${val}" len)
-   math(EXPR len "${len} - 2")
-   string(SUBSTRING "${val}" 2 ${len} val) # skip the "0x" prefix
-
-
-   set(res 0)
-   set(mul 1)
-   math(EXPR len "${len} - 1")
-
-   foreach (i RANGE "${len}")
-
-      math(EXPR j "${len} - ${i}")
-      string(SUBSTRING "${val}" ${j} 1 c)
-
-      h2d_char(${c} c)
-
-      math(EXPR res "${res} + ${c} * ${mul}")
-      math(EXPR mul "${mul} * 16")
-
-      if (${res} LESS 0)
-         string(CONCAT err "The hex number 0x${val} is too big "
-                           "for CMake: it does not fit in a signed 32-bit int")
-
-         message(FATAL_ERROR "${err}")
-      endif()
-
-   endforeach()
-
-   set(${out} ${res} PARENT_SCOPE)
-
-endfunction()
-
-
-function(dec2hex val out)
-
-   if (NOT "${val}" MATCHES "^[0-9]+$")
-      message(FATAL_ERROR "Invalid decimal number '${val}'")
-   endif()
-
-   set(hex_chars "0123456789abcdef")
-   set(res "")
-
-   if (${val} EQUAL 0)
-      set(${out} "0x0" PARENT_SCOPE)
-   else()
-
-      while (${val} GREATER 0)
-
-         math (EXPR q "${val} % 16")
-         string(SUBSTRING "${hex_chars}" ${q} 1 c)
-         set(res "${c}${res}")
-
-         math (EXPR val "${val} / 16")
-      endwhile()
-
-      set(${out} "0x${res}" PARENT_SCOPE)
-
-   endif()
-endfunction()
-
-
 function(smart_config_file src dest)
 
    configure_file(
@@ -304,16 +224,9 @@ function(smart_config_file src dest)
 
    else()
 
-      if(${CMAKE_VERSION} VERSION_LESS "3.17.0")
-         execute_process(
-            COMMAND ${CMAKE_COMMAND} -E remove ${dest}.tmp
-         )
-      else()
-         # The `remove` command has been deprecated in CMake 3.17
-         execute_process(
-            COMMAND ${CMAKE_COMMAND} -E rm ${dest}.tmp
-         )
-      endif()
+      execute_process(
+         COMMAND ${CMAKE_COMMAND} -E rm ${dest}.tmp
+      )
 
    endif()
 

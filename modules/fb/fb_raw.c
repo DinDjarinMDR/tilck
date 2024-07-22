@@ -16,6 +16,7 @@
 #include <tilck/common/utils.h>
 #include <tilck/common/color_defs.h>
 #include <tilck/common/printk.h>
+#include <tilck/common/unaligned.h>
 
 #include <tilck/mods/fb_console.h>
 #include <tilck/kernel/paging.h>
@@ -126,23 +127,23 @@ void fb_set_font(void *font)
       u32 width;            /* width in pixels */
    } *h2 = font;
 
-   if (h2->magic == PSF2_FONT_MAGIC) {
+   if (READ_FIELD(h2, magic) == PSF2_FONT_MAGIC) {
 
-      font_w = h2->width;
-      font_h = h2->height;
-      font_width_bytes = h2->bytes_per_glyph / font_h;
-      font_glyph_data = (u8 *)h2 + h2->header_size;
-      font_bytes_per_glyph = h2->bytes_per_glyph;
+      font_w = READ_FIELD(h2, width);
+      font_h = READ_FIELD(h2, height);
+      font_width_bytes = READ_FIELD(h2, bytes_per_glyph) / font_h;
+      font_glyph_data = (u8 *)h2 + READ_FIELD(h2, header_size);
+      font_bytes_per_glyph = READ_FIELD(h2, bytes_per_glyph);
 
    } else {
 
-      VERIFY(h1->magic == PSF1_FONT_MAGIC);
+      VERIFY(READ_FIELD(h1, magic) == PSF1_FONT_MAGIC);
 
       font_w = 8;
-      font_h = h1->bytes_per_glyph;
+      font_h = READ_FIELD(h1, bytes_per_glyph);
       font_width_bytes = 1;
       font_glyph_data = (u8 *)h1 + sizeof(*h1);
-      font_bytes_per_glyph = h1->bytes_per_glyph;
+      font_bytes_per_glyph = READ_FIELD(h1, bytes_per_glyph);
    }
 }
 

@@ -94,12 +94,20 @@ struct process {
    void *sa_handlers[_NSIG - 1];
 };
 
+/*
+ * Simple struct used for allocating/freeing the first task of an userspace
+ * process. It combines both the struct task and the struct process in one
+ * single allocation.
+ */
+struct task_and_process {
+   struct task main_task_obj;
+   struct process process_obj;
+};
+
 STATIC_ASSERT(sizeof(struct misc_buf) <= PAGE_SIZE);
-
-#define TOT_PROC_AND_TASK_SIZE    (sizeof(struct task) + sizeof(struct process))
-
 STATIC_ASSERT((sizeof(struct task) & ~POINTER_ALIGN_MASK) == 0);
 STATIC_ASSERT((sizeof(struct process) & ~POINTER_ALIGN_MASK) == 0);
+STATIC_ASSERT(OFFSET_OF(struct task_and_process, main_task_obj) == 0);
 
 static ALWAYS_INLINE struct task *
 get_process_task(struct process *pi)
@@ -117,8 +125,10 @@ task_is_parent(struct task *parent, struct task *child)
    return child->pi->parent_pid == parent->pi->pid;
 }
 
-int do_fork(bool vfork);
-void handle_vforked_child_move_on(struct process *pi);
+int do_fork(regs_t *user_regs, bool vfork);
+void unblock_parent_of_vforked_child(struct process *pi);
+void vforked_child_transfer_dispose_mi(struct process *pi);
+
 int first_execve(const char *abs_path, const char *const *argv);
 
 int setup_process(struct elf_program_info *pinfo,

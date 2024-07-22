@@ -38,7 +38,6 @@ Contents
   - [Testing Tilck](#testing-tilck)
   - [Debugging Tilck](#debugging-tilck)
     * [Tilck's debug panel](#tilcks-debug-panel)
-  - [Contributing to Tilck](#contributing-to-tilck)
 * [A comment about user experience](#a-comment-about-user-experience)
 * [FAQ](#faq)
 
@@ -200,13 +199,9 @@ can run correctly programs having a fair amount of complexity.
 #### Userspace applications
 Tilck can run a fair amount of console applications like the **BusyBox** suite,
 **Vim**, **TinyCC**, **Micropython**, **Lua**, and framebuffer applications like
-a port of DOOM for the Linux console called **fbDOOM**. Check project's [wiki page]
-for more info about that.
-
-#### Screenshots
-![Tilck screenshots](http://vvaltchev.github.io/tilck_imgs/v2/thumbnails.png)
-
-For full-size screenshots and much more stuff, check Tilck's [wiki page].
+**fbDOOM** just for fun, despite that being completely out of project's scope.
+Check project's [wiki page] for more info about the software that can run on
+Tilck.
 
 [syscalls]: docs/syscalls.md
 [wiki page]: https://github.com/vvaltchev/tilck/wiki
@@ -368,13 +363,6 @@ about it, check the the [debugging] document.
 [sysfs]: https://github.com/vvaltchev/tilck/wiki/Tilck's-sysfs
 [Magic SysRq]: https://en.wikipedia.org/wiki/Magic_SysRq_key
 
-### Contributing to Tilck
-
-Contributing to the Tilck project is not only possible, but it's encouraged.
-For more about that, check the guidelines in the [contributing] document.
-
-[contributing]: docs/contributing.md
-
 A comment about user experience
 ----------------------------------
 
@@ -421,6 +409,8 @@ For the *full list* of questions on Tilck, check the [Q & A page] in the [Discus
 [Discussions]: https://github.com/vvaltchev/tilck/discussions
 
 - [Why Tilck does not have the feature/abstraction XYZ like other kernels do?](https://github.com/vvaltchev/tilck/discussions/83)
+
+- [Can Tilck be used to build other projects on the top of it?](https://github.com/vvaltchev/tilck/discussions/185)
 
 - [Why Tilck runs only on x86 (ia-32)?](https://github.com/vvaltchev/tilck/discussions/84)
 

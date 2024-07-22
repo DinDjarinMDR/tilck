@@ -5,6 +5,7 @@
 
 #include <tilck/common/basic_defs.h>
 #include <tilck/common/utils.h>
+#include <tilck/common/unaligned.h>
 
 #include <tilck/kernel/sched.h>
 #include <tilck/kernel/process.h>
@@ -38,7 +39,7 @@ STATIC_ASSERT(
    OFFSET_OF(struct task, faults_resume_mask) == TI_FAULTS_MASK_OFF
 );
 
-STATIC_ASSERT(TOT_PROC_AND_TASK_SIZE <= 1024);
+STATIC_ASSERT(sizeof(struct task_and_process) <= 1024);
 
 void task_info_reset_kernel_stack(struct task *ti)
 {
@@ -516,7 +517,16 @@ int setup_process(struct elf_program_info *pinfo,
 
       pi = ti->pi;
 
-      if (!pi->vforked) {
+      if (pi->vforked) {
+
+        /*
+         * In case of vforked processes, we cannot remove any mappings and we
+         * need some special management for the mappings info object (pi->mi).
+         */
+         vforked_child_transfer_dispose_mi(pi);
+
+      } else {
+
          remove_all_user_zero_mem_mappings(pi);
          remove_all_file_mappings(pi);
          process_free_mappings_info(pi);
@@ -553,11 +563,23 @@ err:
    return rc;
 }
 
-void save_current_task_state(regs_t *r)
+void save_current_task_state(regs_t *r, bool irq)
 {
    struct task *curr = get_curr_task();
 
    ASSERT(curr != NULL);
+   ASSERT(r != NULL);
+
+   if (irq) {
+      /*
+       * In case of preemption while in userspace that happens while the
+       * interrupts are disabled. Make sure we ignore that fact while saving
+       * the current state and always keep the IF flag set in the EFLAGS
+       * register.
+       */
+      r->eflags |= EFLAGS_IF;
+   }
+
    curr->state_regs = r;
 }
 
@@ -642,6 +664,90 @@ adjust_nested_interrupts_for_task_in_kernel(struct task *ti)
    }
 }
 
+static void
+switch_to_task_safety_checks(struct task *curr, struct task *next)
+{
+   static bool first_task_switch_passed;
+
+   /*
+    * Generally, we don't support task switches with interrupts disabled
+    * simply because the current task might have ended up in the scheduler
+    * by mistake, while doing a critical operation. That looks weird, but
+    * why not checking against that? We have so far only *ONE* legit case
+    * where entering in switch_to_task() is intentional: the first task
+    * switch in kmain() to the init processs.
+    *
+    * In case it turns out that there are more *legit* cases where we need
+    * switch to a new task with interrupts disabled, we might fix those cases
+    * or decide to support that use-case, by replacing the checks below with
+    * forced setting of the EFLAGS_IF bit:
+    *
+    *    state->eflags |= EFLAGS_IF
+    *
+    * For the moment, that is not necessary.
+    */
+   if (UNLIKELY(!are_interrupts_enabled())) {
+
+      /*
+       * Interrupts are disabled in this corner case: it's totally safe to read
+       * and write the static boolean.
+       */
+      if (!first_task_switch_passed) {
+
+         first_task_switch_passed = true;
+
+      } else {
+
+         /*
+          * Oops! We're not in the first task switch and interrupts are
+          * disabled: very likely there's a bug!
+          */
+         panic("Cannot switch away from task with interrupts disabled");
+      }
+   }
+
+   /*
+    * Make sure in NO WAY we'll switch to a user task keeping interrupts
+    * disabled. That would be a disaster. And if that happens due to a weird
+    * bug, let's try to learn as much as possible about why that happened.
+    */
+   if (UNLIKELY(!(next->state_regs->eflags & EFLAGS_IF))) {
+
+      const char *curr_str =
+         curr->kthread_name
+            ? curr->kthread_name
+            : curr->pi->debug_cmdline;
+
+      const char *next_str =
+         next->kthread_name
+            ? next->kthread_name
+            : next->pi->debug_cmdline;
+
+      printk("[sched] task: %d (%p, %s) => %d (%p, %s)\n",
+             curr->tid, curr, curr_str,
+             next->tid, next, next_str);
+
+      if (next->running_in_kernel) {
+         dump_stacktrace(
+            regs_get_frame_ptr(next->state_regs),
+            next->pi->pdir
+         );
+      }
+
+      panic("[sched] Next task does not have interrupts enabled. "
+            "In kernel: %u, timer_ready: %u, is_sigsuspend: %u, "
+            "sa_pending: %p, sa_fault_pending: %p, "
+            "sa_mask: %p, sa_old_mask: %p",
+            next->running_in_kernel,
+            next->timer_ready,
+            next->in_sigsuspend,
+            next->sa_pending[0],
+            next->sa_fault_pending[0],
+            next->sa_mask[0],
+            next->sa_old_mask[0]);
+   }
+}
+
 NORETURN void
 switch_to_task(struct task *ti)
 {
@@ -657,12 +763,7 @@ switch_to_task(struct task *ti)
    }
 
    ASSERT(!is_preemption_enabled());
-
-   /*
-    * Make sure in NO WAY we'll switch to a user task keeping interrupts
-    * disabled. That would be a disaster.
-    */
-   ASSERT(state->eflags & EFLAGS_IF);
+   switch_to_task_safety_checks(curr, ti);
 
    /* Do as much as possible work before disabling the interrupts */
    task_change_state_idempotent(ti, TASK_STATE_RUNNING);

@@ -57,7 +57,7 @@ STATIC int fork_dup_all_handles(struct process *pi)
 }
 
 // Returns child's pid
-int do_fork(bool vfork)
+int do_fork(regs_t *user_regs, bool vfork)
 {
    int pid;
    int rc = -EAGAIN;
@@ -67,6 +67,8 @@ int do_fork(bool vfork)
    pdir_t *new_pdir = NULL;
 
    disable_preemption();
+
+   ASSERT(curr != NULL);
    ASSERT_TASK_STATE(curr->state, TASK_STATE_RUNNING);
 
    if ((pid = create_new_pid()) < 0)
@@ -101,12 +103,15 @@ int do_fork(bool vfork)
    child->running_in_kernel = false;
    task_info_reset_kernel_stack(child);
 
+   ASSERT(curr != NULL);
+   ASSERT(curr->state_regs != NULL);
+
    child->state_regs--; // make room for a regs_t struct in child's stack
-   *child->state_regs = *curr->state_regs; // copy parent's regs_t
+   *child->state_regs = *user_regs; // copy parent's regs_t
    set_return_register(child->state_regs, 0);
 
    // Make the parent to get child's pid as return value.
-   set_return_register(curr->state_regs, (ulong) child->tid);
+   set_return_register(user_regs, (ulong) child->tid);
 
    if (fork_dup_all_handles(child->pi) < 0)
       goto oom_case;

@@ -2,6 +2,9 @@
 
 #include <tilck_gen_headers/config_boot.h>
 #include <tilck_gen_headers/config_kernel.h>
+#include <tilck_gen_headers/mod_console.h>
+#include <tilck_gen_headers/mod_kb8042.h>
+#include <tilck_gen_headers/config_debug.h>
 
 #if ARCH_BITS == 32
    #define USE_ELF32
@@ -17,6 +20,7 @@
 #include <tilck/common/elf_calc_mem_size.c.h>
 #include <tilck/common/elf_get_section.c.h>
 #include <tilck/common/build_info.h>
+#include <tilck/common/cmdline_types.h>
 
 #include "common_int.h"
 
@@ -250,7 +254,7 @@ clear_screen(void)
 }
 
 static void
-print_kernel_mods(void)
+menu_print_kernel_mods(void)
 {
    static char prefix[]         = "    modules:  ";
    static char prefix_padding[] = "              ";
@@ -325,6 +329,152 @@ show_menu_item(const char *cmd,
    }
 }
 
+static void
+menu_print_kernel_info(struct commit_hash_and_date *comm)
+{
+   printk("    version:  %s\n", kernel_build_info->ver);
+   printk("    commit:   %s", comm->hash);
+
+   if (comm->dirty)
+      printk(" (dirty)");
+   else if (comm->tags[0])
+      printk(" (%s)", comm->tags);
+
+   printk("\n");
+   printk("    date:     %s\n", comm->date);
+}
+
+static void
+menu_print_video_mode(struct generic_video_mode_info *gi)
+{
+   show_menu_item("v", "Video mode", "", false, false);
+
+   if (selected_mode != INVALID_VIDEO_MODE) {
+
+      if (selected_mode != g_defmode)
+         intf->set_color(COLOR_CYAN);
+
+      show_mode(-1, gi, false);
+
+      if (selected_mode != g_defmode)
+         intf->set_color(DEFAULT_FG_COLOR);
+
+   } else {
+      printk("<none>\n");
+   }
+}
+
+
+#define DEFINE_KOPT(name, alias, type, default) \
+   { #name, #alias, KOPT_TYPE_##type, TO_PTR(default) },
+
+static const struct kopt all_kopts[] = {
+   #include <tilck/common/cmdline_opts.h>
+};
+
+#undef DEFINE_KOPT
+
+static const char *
+kopt_type_to_str(enum kopt_type type)
+{
+   switch (type) {
+      case KOPT_TYPE_bool:    return "bool   ";
+      case KOPT_TYPE_long:    return "long   ";
+      case KOPT_TYPE_ulong:   return "ulong  ";
+      case KOPT_TYPE_wordstr: return "wordstr";
+      default:                return "???????";
+   }
+}
+
+static void
+serialize_kopt_data(const struct kopt *opt, char *buf, size_t n)
+{
+      memset(buf, ' ', n);
+
+      switch (opt->type) {
+         case KOPT_TYPE_bool:
+            buf[0] = '0' + (ulong)opt->data;
+            break;
+         case KOPT_TYPE_long:
+            itoa64((long)opt->data, buf);
+            break;
+         case KOPT_TYPE_ulong:
+            uitoa64((ulong)opt->data, buf, 10);
+            break;
+         case KOPT_TYPE_wordstr:
+            if (opt->data)
+               strncpy(buf, opt->data, n);
+            else
+               strncpy(buf, "(NULL)", n);
+            break;
+      }
+
+      /* Place a NUL terminator at the end */
+      buf[n - 1] = '\0';
+
+      /* Remove the last NUL terminator so that our string is padded */
+      for (size_t j = n - 1; j > 0; j--) {
+         if (buf[j - 1] == '\0') {
+            buf[j - 1] = ' ';
+            break;
+         }
+      }
+}
+
+static void
+menu_show_help(void)
+{
+   char padded_name[23];
+   char padded_alias[5];
+   char default_str[12];
+   size_t len;
+
+   printk("List of boot options\n");
+   printk("+-------------------------+-------+---------+-------------+\n");
+   printk("| long name               | alias | type    | default     |\n");
+   printk("+-------------------------+-------+---------+-------------+\n");
+
+   for (u32 i = 0; i < ARRAY_SIZE(all_kopts); i++) {
+
+      const struct kopt *opt = &all_kopts[i];
+      const char *name_ptr = opt->name;
+      const char *alias_ptr = opt->alias;
+      const bool has_alias = opt->alias[0] != '\0';
+      const char *type_str = kopt_type_to_str(opt->type);
+
+      /* basic_printk.c has no support for padding specifiers */
+      len = strlen(opt->name);
+      if (len < sizeof(padded_name) - 1) {
+         memset(padded_name, ' ', sizeof(padded_name));
+         padded_name[sizeof(padded_name) - 1] = 0;
+         memcpy(padded_name, opt->name, len);
+         name_ptr = padded_name;
+      }
+
+      if (has_alias) {
+         len = strlen(opt->alias);
+         if (len < sizeof(padded_alias) - 1) {
+            memset(padded_alias, ' ', sizeof(padded_alias));
+            padded_alias[sizeof(padded_alias) - 1] = 0;
+            memcpy(padded_alias, opt->alias, len);
+            alias_ptr = padded_alias;
+         }
+      }
+
+      serialize_kopt_data(opt, default_str, sizeof(default_str));
+
+      if (has_alias) {
+         printk("| -%s | -%s | %s | %s |\n",
+                name_ptr, alias_ptr, type_str, default_str);
+      } else {
+         printk("| -%s |       | %s | %s |\n", name_ptr, type_str, default_str);
+      }
+   }
+
+   printk("+-------------------------+-------+---------+-------------+\n");
+   printk("\n");
+}
+
 static bool
 run_interactive_logic(void)
 {
@@ -352,28 +502,13 @@ run_interactive_logic(void)
       printk("---------------------------------------------------\n");
 
       show_menu_item("k", "Kernel file", kernel_file_path, false, true);
-
-      printk("    version:  %s\n", kernel_build_info->ver);
-      printk("    commit:   %s", comm.hash);
-
-      if (comm.dirty)
-         printk(" (dirty)");
-      else if (comm.tags[0])
-         printk(" (%s)", comm.tags);
-
-      printk("\n");
-      printk("    date:     %s\n", comm.date);
-      print_kernel_mods();
+      menu_print_kernel_info(&comm);
+      menu_print_kernel_mods();
       printk("\n");
 
-      show_menu_item("v", "Video mode", "", false, false);
-
-      if (selected_mode != INVALID_VIDEO_MODE)
-         show_mode(-1, &gi, false);
-      else
-         printk("<none>\n");
-
+      menu_print_video_mode(&gi);
       show_menu_item("e", "Cmdline", cmdline_buf, true, true);
+      show_menu_item("h", "Help", NULL, false, true);
       show_menu_item("b", "Boot", NULL, false, true);
       printk("\n> ");
 
@@ -409,6 +544,10 @@ run_interactive_logic(void)
             printk("Cmdline: ");
             read_line(cmdline_buf, MIN(70, (int)cmdline_buf_sz));
             wait_for_key = false;
+            break;
+
+         case 'h':
+            menu_show_help();
             break;
 
          default:

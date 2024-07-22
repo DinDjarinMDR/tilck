@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-2-Clause
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.22)
 
 set(EARLY_BOOT_SCRIPT ${CMAKE_BINARY_DIR}/boot/legacy/early_boot_script.ld)
 set(STAGE3_SCRIPT ${CMAKE_BINARY_DIR}/boot/legacy/stage3/linker_script.ld)
@@ -7,12 +7,9 @@ set(KERNEL_SCRIPT ${CMAKE_BINARY_DIR}/kernel/arch/${ARCH}/linker_script.ld)
 set(MUSL_GCC ${CMAKE_BINARY_DIR}/scripts/musl-gcc)
 set(MUSL_GXX ${CMAKE_BINARY_DIR}/scripts/musl-g++)
 
-hex2dec(${BL_ST2_DATA_SEG} BL_ST2_DATA_SEG_DEC)
-
-math(EXPR BL_BASE_ADDR_DEC
-      "${BL_ST2_DATA_SEG_DEC} * 16 + ${EARLY_BOOT_SZ} + ${STAGE3_ENTRY_OFF}")
-
-dec2hex(${BL_BASE_ADDR_DEC} BL_BASE_ADDR)
+math(EXPR BL_BASE_ADDR
+     "${BL_ST2_DATA_SEG} * 16 + ${EARLY_BOOT_SZ} + ${STAGE3_ENTRY_OFF}"
+     OUTPUT_FORMAT HEXADECIMAL)
 
 file(GLOB config_glob ${GLOB_CONF_DEP} "${CMAKE_SOURCE_DIR}/config/*.h")
 
@@ -86,6 +83,23 @@ smart_config_file(
    ${CMAKE_SOURCE_DIR}/scripts/templates/weaken_syms
    ${CMAKE_BINARY_DIR}/scripts/weaken_syms
 )
+
+if (${BOOTLOADER_U_BOOT})
+   smart_config_file(
+      ${CMAKE_SOURCE_DIR}/other/bsp/${ARCH}/fit-image.its
+      ${CMAKE_BINARY_DIR}/boot/u_boot/fit-image.its
+   )
+
+   smart_config_file(
+      ${CMAKE_SOURCE_DIR}/other/bsp/${ARCH}/u-boot.cmd
+      ${CMAKE_BINARY_DIR}/boot/u_boot/u-boot.cmd
+   )
+
+   smart_config_file(
+      ${CMAKE_SOURCE_DIR}/other/bsp/${ARCH}/uEnv.txt
+      ${CMAKE_BINARY_DIR}/boot/u_boot/uEnv.txt
+   )
+endif()
 
 # Run qemu scripts
 
